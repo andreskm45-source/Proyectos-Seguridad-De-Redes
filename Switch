@@ -1,0 +1,60 @@
+--Documentacion y scripts utilizados--
+
+1. Switch L2 (Cisco IOL)
+Este es el script consolidado que incluye tu configuración básica de seguridad (SSH, contraseñas) y la asignación de VLANs junto con el Port Security.
+
+enable
+configure terminal
+
+! Seguridad Básica y SSH
+hostname SW-1
+no ip domain lookup
+ip domain-name cisco.lab
+banner motd #SOLO PERSONAL AUTORIZADO#
+enable secret class
+username admin privilege 15 secret cisco
+crypto key generate rsa modulus 1024
+ip ssh version 2
+ip ssh time-out 60
+ip ssh authentication-retries 3
+
+line console 0
+password cisco
+login
+line vty 0 15
+transport input ssh
+login local
+exit
+
+! Creación de VLANs
+vlan 10
+name Usuarios
+vlan 20
+name Servidores
+exit
+
+! Configuración de Puerto Troncal hacia FortiGate (Ejemplo: Gi0/0)
+interface GigabitEthernet0/0
+switchport trunk encapsulation dot1q
+switchport mode trunk
+exit
+
+! Configuración de Puertos de Acceso (Usuarios - VLAN 10) con Port Security
+interface range GigabitEthernet0/1 - 2
+switchport mode access
+switchport access vlan 10
+switchport port-security
+switchport port-security maximum 1
+switchport port-security mac-address sticky
+switchport port-security violation shutdown
+exit
+
+! Configuración de Puertos de Acceso (Servidores - VLAN 20)
+interface range GigabitEthernet1/0 - 1
+switchport mode access
+switchport access vlan 20
+exit
+
+do write memory
+
+
