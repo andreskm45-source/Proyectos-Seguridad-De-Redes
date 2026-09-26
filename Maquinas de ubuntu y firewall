@@ -1,0 +1,112 @@
+2. Servidor Web (Ubuntu 20.04)
+Ejecutado desde la consola del servidor para establecer su IP estática (10.7.84.130) e instalar los servicios HTTP/HTTPS.
+
+A. Configuración de Red (Netplan):
+
+sudo nano /etc/netplan/01-netcfg.yaml
+
+YAML
+network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: no
+      addresses:
+        - 10.7.84.130/28
+      gateway4: 10.7.84.129
+      nameservers:
+        addresses:
+          - 8.8.8.8
+          - 1.1.1.1
+
+
+sudo netplan apply
+
+Bash
+sudo apt update
+sudo apt install apache2 -y
+sudo a2enmod ssl
+sudo a2ensite default-ssl
+sudo systemctl restart apache2
+
+
+
+3. Servidor de Base de Datos (Ubuntu 20.04)
+Ejecutado para establecer su IP estática (10.7.84.131), instalar MySQL y aplicar las reglas estrictas de firewall local.
+
+A. Configuración de Red (Netplan):
+
+
+sudo nano /etc/netplan/01-netcfg.yaml
+
+YAML
+network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: no
+      addresses:
+        - 10.7.84.131/28
+      gateway4: 10.7.84.129
+      nameservers:
+        addresses:
+          - 8.8.8.8
+
+sudo netplan apply
+
+Bash
+sudo apt update
+sudo apt install mysql-server -y
+sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
+
+Dentro del archivo, cambiar la línea de bind-address para permitir conexiones externas:
+bind-address = 0.0.0.0
+
+Reiniciar el servicio:
+
+Bash
+sudo systemctl restart mysql
+
+Configuración de Firewall Local (UFW) - Restricción puerto 3306:
+
+Bash
+sudo ufw enable
+sudo ufw default deny incoming
+sudo ufw allow from 10.7.84.130 to any port 3306 proto tcp
+sudo ufw allow ssh
+sudo ufw reload
+4. Nodos de Usuario (VPCs de PNETLab)
+Comando utilizado en las VPC básicas de la VLAN 10 para obtener dirección IP del DHCP configurado en el FortiGate.
+
+Plaintext
+ip dhcp
+5. Resumen de Configuración FortiGate (Realizado por GUI)
+Dado que el mandato exige que el FortiGate se configure y demuestre visualmente, documenta estos parámetros estructurales en tu archivo:
+
+Interfaces:
+
+port2 (WAN): Salida a Nube (NAT).
+
+port1 (LAN): Conectado al Switch L2.
+
+Vlan10 (Subinterfaz de port1): IP 10.7.84.1/25, DHCP Server Activo.
+
+Vlan20 (Subinterfaz de port1): IP 10.7.84.129/28.
+
+Enrutamiento (Static Route):
+
+Destino: 0.0.0.0/0.0.0.0, Interfaz: port2, Gateway: IP de la nube.
+
+Políticas de Firewall:
+
+Salida_Internet: Vlan10 -> port2 (Action: ACCEPT, NAT: Habilitado, File Filter: Block_EXE).
+
+Permitir Usuarios a Web Server: Vlan10 -> Vlan20, Destination: 10.7.84.130, Service: HTTPS (Action: ACCEPT, NAT: Deshabilitado, IPS: IPS_Block_SQLi, SSL Inspection: deep-inspection).
+
+Bloquear Usuarios a DB Server: Vlan10 -> Vlan20, Destination: 10.7.84.131, Service: MYSQL (Action: DENY).
+
+IPS y DoS:
+
+Sensor IPS (IPS_Block_SQLi): Filtro por Target (Server), Protocol (HTTP/HTTPS) y firma (SQL.Injection). Acción: Block, Cuarentena: Attacker IP (10 minutos).
+
+IPv4 DoS Policy: Origen Vlan10 hacia 10.7.84.130, límite de tcp_syn_flood a 50 conexiones (Action: Block).
